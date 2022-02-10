@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>vim keyboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script> -->
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    td {
+      /* border: 1px solid #aaa; */
+    }
+    .keyboardWrap{
+    }
+    .keyList{
+      position: relative;
+      width: 100%;
+      height: 34vw;
+      overflow: hidden;
+      /* width: 4000px;
+      height: 2000px;
+      left: 50%;
+      top: 50%;
+      margin-left: -2000px;
+      margin-top: -1000px;
+      transform: scale(0.3); */
+    }
+    .keyList .keyCard{
+      position: absolute;
+      background-color: #eee;
+      border-radius: 10px;
+      overflow: hidden;
+      user-select: none;
+    }
+    .keyList.inStep .keyCard{
+      opacity: .3;
+    }
+    .keyList .keyCard.currentStepKey{
+      outline: 3px solid rgba(0,0,0,.5);
+      color: #000;
+      opacity: 1;
+    }
+    .keyList .keyCard .cardTitle,
+    .keyList .keyCard .cardName{
+      position: absolute;
+      left: 0;
+      width: 100%;
+      top: 10%;
+      transform: translate(0%,0%);
+      padding: 0 6px;
+      box-sizing: border-box;
+      opacity: .05;
+      text-align: right;
+      /* font-size: 36px; */
+      font-weight: bold;
+    }
+    .keyList .keyCard .cardName{
+      text-align: left;
+      top: auto;
+      bottom:10%;
+    }
+    .keyList .keyCard .intro{
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      box-sizing: border-box;
+      line-height: 1;
+      filter: grayscale(100%);
+    }
+    
+    .keyList .keyCard.currentStepKey .intro{
+      opacity: .3;
+    }
+    .keyList .keyCard.currentStepKey .intro.intro.currentStepIntro{
+      opacity: 1;
+    }
+    .keyList .keyCard .intro.currentStepIntro{
+      filter: none;
+      /* outline: 2px solid #aaa; */
+    }
+    .keyList .keyCard .intro .keyName{
+      position: absolute;
+      width: 100%;
+      left: 0;
+      padding: 0 10px;
+      box-sizing: border-box;
+      /* left: 50%; */
+      /* transform: translate(-50%,0); */
+      font-size: 3em;
+    }
+    .keyList .keyCard .intro .keyTitle{
+      position: absolute;
+      width: 100%;
+      left: 0;
+      text-align: center;
+      /* font-size: .4rem; */
+
+    }
+    .keyList .keyCard .intro.a{
+      height: 50%;
+      top: 0;
+      opacity: .5;
+    }
+    .keyList .keyCard .intro.a .keyName{
+      text-align: right;
+      bottom: 0;
+    }
+    .keyList .keyCard .intro.a .keyTitle{
+      top: 4px;
+    }
+    .keyList .keyCard .intro.b{
+      height: 50%;
+      top: 50%;
+    }
+    .keyList .keyCard .intro.b .keyName{
+      top: 0;
+    }
+    .keyList .keyCard .intro.b .keyTitle{
+      bottom: 4px;
+
+    }
+    .keyList .keyCard .intro.ab{
+      height: 100%;
+    }
+    .keyList .keyCard .intro.ab .keyName{
+      text-align: center;
+      bottom: 50%;
+    }
+    .keyList .keyCard .intro.ab .keyTitle{
+      top:50%;
+    }
+    .keyList .keyCard .intro.y{
+      background-color: #fffe6b;
+    }
+    .keyList .keyCard .intro.g{
+      background-color: #6bff6b;
+    }
+    .keyList .keyCard .intro.o{
+      background-color: #ffad1f;
+    }
+    .keyList .keyCard .intro.bb{
+      background-color: #ade4fa;
+    }
+    .keyList .keyCard .intro.cr{
+      color: red;
+    }
+
+    button {
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <el-container class="webPage step0">
+      <el-header style="text-align: center; ">
+        <div style="font-size: 36px;">vim keyboard</div>
+        
+        <!-- <el-select v-model="introShowGroup" multiple placeholder="请选择">
+          <el-option
+            v-for="item in [0,1,2,3,4,5,6,7,8,9]"
+            :key="'showGroupOpts_'+item"
+            :label="item"
+            :value="item">
+          </el-option>
+        </el-select>
+        {{introShowGroup}} -->
+        <div style="text-align: center;">
+          <!-- <el-pagination
+            background
+            layout="prev, pager, next"
+            :current-page.sync="introShowStep"
+            :page-count="7">
+          </el-pagination> -->
+          <el-slider
+            v-model="introShowStep"
+            style="width:400px; margin:auto;"
+            :min="0"
+            :max="7"
+            :step="1"
+            show-stops
+            :marks="{0:'All',1:'Class1',2:'Class2',3:'Class3',4:'Class4',5:'Class5',6:'Class6',7:'Class7'}">
+          </el-slider>
+          <!-- {{introShowStep}} -->
+        </div>
+      </el-header>
+      <el-main>
+        <div class="keyboardWrap">
+          <div class="keyList" :class="{inStep:introShowStep!==0}" :style="{fontSize:20*keyboardScale+'px'}">
+            <div class="keyCard" v-for="keyInfo in keyList" :class="{currentStepKey:keyInfo.currentStep}" :style="{left:keyInfo.left+'px',top:keyInfo.top+'px',width:keyInfo.width+'px',height:keyInfo.height+'px'}">
+              <div class="cardTitle">{{keyInfo.title}}</div>
+              <div class="cardName">{{keyInfo.name}}</div>
+              <div class="intros" v-if="keyInfo.intros">
+                <div v-for="(intro,ik) in keyInfo.intros" :class="['intro',ik,intro.type,(intro.currentStep?'currentStepIntro':'')]" v-if="intro.show">
+                  <div class="keyName">{{intro.keyName || (ik==='a'?keyInfo.title:keyInfo.name)}}</div>
+                  <div class="keyTitle">{{intro.keyTitle}}</div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+        </div>
+
+      </el-main>
+    </el-container>
+
+  </div>
+  <script>
+    function copyTxt(str) {
+      var copyTextarea = document.createElement('textarea');
+      copyTextarea.style.opacity = '0';
+      copyTextarea.value = str;
+      document.body.appendChild(copyTextarea);
+      copyTextarea.select(); // 选择对象
+      document.execCommand('Copy'); // 执行浏览器复制命令
+      setTimeout(function () { document.body.removeChild(copyTextarea); copyTextarea = null; alert("已复制好，可贴粘。"); }, 0)
+
+    }
+    Vue.prototype.$ELEMENT = { size: 'mini', zIndex: 3000 };
+    // Vue.use(Element, { size: 'mini', zIndex: 3000 });
+    var app = new Vue({
+      el: '#app',
+      data: {
+        keyboardMaxWidth:1000,
+        introShowGroup:[],
+        introShowStep:0,
+        keysData: [
+          {
+            "x": 52,
+            "y": 50,
+            "width": 230,
+            "height": 230,
+            "id": "k-esc",
+            intros:{
+              ab:{
+                keyName:'Esc',
+                keyTitle:'进入命令模式',
+                type:'y',
+                g:0,
+              }
+            }
+          },
+          // {
+          //   "x": 454,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f1"
+          // },
+          // {
+          //   "x": 713,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f2"
+          // },
+          // {
+          //   "x": 973,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f3"
+          // },
+          // {
+          //   "x": 1232,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f4"
+          // },
+          // {
+          //   "x": 1612,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f5"
+          // },
+          // {
+          //   "x": 1871,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f6"
+          // },
+          // {
+          //   "x": 2131,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f7"
+          // },
+          // {
+          //   "x": 2390,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f8"
+          // },
+          // {
+          //   "x": 2769,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f9"
+          // },
+          // {
+          //   "x": 3028,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f10"
+          // },
+          // {
+          //   "x": 3288,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f11"
+          // },
+          // {
+          //   "x": 3547,
+          //   "y": 50,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-f12"
+          // },
+          {
+            "x": 50,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-`",
+            title:'~',
+            intros:{
+              a:{
+                keyTitle:'转换大小写',
+                type:'y',
+                g:6,
+              },
+              b:{
+                keyTitle:'跳转到标注',
+                type:'g',
+                g:4,
+              },
+            }
+          },
+          {
+            "x": 310,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-1",
+            title:'!',
+            intros:{
+              a:{
+                keyTitle:'外部过滤器',
+                type:'o'
+              },
+            }
+          },
+          {
+            "x": 569,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-2",
+            title:'@',
+            intros:{
+              a:{
+                keyTitle:'运行宏',
+                type:'y',
+                g:4,
+              },
+            }
+          },
+          {
+            "x": 829,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-3",
+            title:'#',
+            intros:{
+              a:{
+                keyTitle:'prev ident',
+                type:'g',
+                g:3,
+              },
+            }
+          },
+          {
+            "x": 1088,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-4",
+            title:'$',
+            intros:{
+              a:{
+                keyTitle:'行尾',
+                type:'g',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 1348,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-5",
+            title:'%',
+            intros:{
+              a:{
+                keyTitle:'括号匹配',
+                type:'g',
+                g:5,
+              },
+            }
+          },
+          {
+            "x": 1607,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-6",
+            title:'^',
+            intros:{
+              a:{
+                keyTitle:'“软”行首',
+                type:'g',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 1867,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-7",
+            title:'&',
+            intros:{
+              a:{
+                keyTitle:'重复:s',
+                type:'y'
+              },
+            }
+          },
+          {
+            "x": 2127,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-8",
+            title:'*',
+            intros:{
+              a:{
+                keyTitle:'next ident',
+                type:'g',
+                g:3,
+              },
+            }
+          },
+          {
+            "x": 2386,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-9",
+            title:'(',
+            intros:{
+              a:{
+                keyTitle:'句首',
+                type:'g',
+                g:5,
+              },
+            }
+          },
+          {
+            "x": 2646,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-0",
+            title:')',
+            intros:{
+              a:{
+                keyTitle:'下一句首',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'“硬”首行',
+                type:'g',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 2905,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k--",
+            title:'_',
+            intros:{
+              a:{
+                keyTitle:'"soft" bol down',
+                type:'g'
+              },
+              b:{
+                keyTitle:'前一行首',
+                type:'g',
+                g:5,
+              },
+            }
+          },
+          {
+            "x": 3165,
+            "y": 310,
+            "width": 230,
+            "height": 230,
+            "id": "k-=",
+            title:'+',
+            intros:{
+              a:{
+                keyTitle:'后一行首',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'自动化格式',
+                type:'o',
+                g:6,
+              },
+            }
+          },
+          // {
+          //   "x": 3425,
+          //   "y": 310,
+          //   "width": 353,
+          //   "height": 230,
+          //   "id": "k-backspace"
+          // },
+          // {
+          //   "x": 50,
+          //   "y": 563,
+          //   "width": 350,
+          //   "height": 230,
+          //   "id": "k-tab"
+          // },
+          {
+            "x": 434,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-q",
+            intros:{
+              a:{
+                keyTitle:'切换至ex模式',
+                type:'y'
+              },
+              b:{
+                keyTitle:'录制宏',
+                type:'y',
+                g:4,
+              },
+            }
+          },
+          {
+            "x": 694,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-w",
+            intros:{
+              a:{
+                keyTitle:'下一单词',
+                type:'g',
+                g:0,
+              },
+              b:{
+                keyTitle:'下一单词',
+                type:'g',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 953,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-e",
+            intros:{
+              a:{
+                keyTitle:'词尾',
+                type:'g',
+                g:0,
+              },
+              b:{
+                keyTitle:'词尾',
+                type:'g',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 1213,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-r",
+            intros:{
+              a:{
+                keyTitle:'替换模式',
+                type:'y cr',
+                g:0,
+              },
+              b:{
+                keyTitle:'替换字符',
+                type:'y',
+                g:6,
+              },
+            }
+          },
+          {
+            "x": 1472,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-t",
+            intros:{
+              a:{
+                keyTitle:'back till',
+                type:'g',
+                g:1,
+              },
+              b:{
+                keyTitle:'till',
+                type:'g',
+                g:1,
+              },
+            }
+          },
+          {
+            "x": 1732,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-y",
+            intros:{
+              a:{
+                keyTitle:'复制行',
+                type:'y',
+                g:6,
+              },
+              b:{
+                keyTitle:'复制',
+                type:'o',
+                g:2,
+              },
+            }
+          },
+          {
+            "x": 1991,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-u",
+            intros:{
+              a:{
+                keyTitle:'撤销行内命令',
+                type:'y'
+              },
+              b:{
+                keyTitle:'撤销命令',
+                type:'y',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 2251,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-i",
+            intros:{
+              a:{
+                keyTitle:'到行首插入',
+                type:'y cr'
+              },
+              b:{
+                keyTitle:'插入模式',
+                type:'y cr',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 2510,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-o",
+            intros:{
+              a:{
+                keyTitle:'上方插入一行',
+                type:'y cr',
+                g:2,
+              },
+              b:{
+                keyTitle:'下方插入一行',
+                type:'y cr',
+                g:2,
+              },
+            }
+          },
+          {
+            "x": 2770,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-p",
+            intros:{
+              a:{
+                keyTitle:'粘贴-前',
+                type:'y',
+                g:2,
+              },
+              b:{
+                keyTitle:'粘贴-后',
+                type:'y',
+                g:2,
+              },
+            }
+          },
+          {
+            "x": 3029,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-[",
+            title:'{',
+            intros:{
+              a:{
+                keyTitle:'段首',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'杂项',
+                type:'g',
+                g:5,
+              },
+            }
+          },
+          {
+            "x": 3289,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-]",
+            title:'}',
+            intros:{
+              a:{
+                keyTitle:'段尾',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'杂项',
+                type:'g',
+                g:5,
+              },
+            }
+          },
+          {
+            "x": 3548,
+            "y": 563,
+            "width": 230,
+            "height": 230,
+            "id": "k-\\",
+            title:'|',
+            intros:{
+              a:{
+                keyTitle:'行首/列',
+                type:'g'
+              },
+              b:{
+                keyTitle:'not used!',
+                type:'bb'
+              },
+            }
+          },
+          // {
+          //   "x": 50,
+          //   "y": 815,
+          //   "width": 417,
+          //   "height": 230,
+          //   "id": "k-capslock"
+          // },
+          {
+            "x": 498,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-a",
+            intros:{
+              a:{
+                keyTitle:'在行尾插入',
+                type:'y cr',
+                g:0,
+              },
+              b:{
+                keyTitle:'光标后插入',
+                type:'y cr'
+              },
+            }
+          },
+          {
+            "x": 758,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-s",
+            intros:{
+              a:{
+                keyTitle:'删除行并插入',
+                type:'y cr',
+                g:6,
+              },
+              b:{
+                keyTitle:'删除字符并插入',
+                type:'y cr',
+                g:6,
+              },
+            }
+          },
+          {
+            "x": 1018,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-d",
+            intros:{
+              a:{
+                keyTitle:'删除至行尾',
+                type:'y',
+                g:6,
+              },
+              b:{
+                keyTitle:'删除',
+                type:'o',
+                g:1,
+              },
+            }
+          },
+          {
+            "x": 1279,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-f",
+            intros:{
+              a:{
+                keyTitle:'行内字符反向查找',
+                type:'g',
+                g:1,
+              },
+              b:{
+                keyTitle:'行内字符查找',
+                type:'g',
+                g:1,
+              },
+            }
+          },
+          {
+            "x": 1539,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-g",
+            intros:{
+              a:{
+                keyTitle:'文尾/行号',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'附加命令',
+                type:'bb'
+              },
+            }
+          },
+          {
+            "x": 1799,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-h",
+            intros:{
+              a:{
+                keyTitle:'屏幕顶行',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'←',
+                type:'g',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 2059,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-j",
+            intros:{
+              a:{
+                keyTitle:'合并两行',
+                type:'y',
+                g:6,
+              },
+              b:{
+                keyTitle:'↓',
+                type:'g',
+                g:0,
+              }
+            }
+          },
+          {
+            "x": 2319,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-k",
+            intros:{
+              a:{
+                keyTitle:'帮助',
+                type:'y',
+                g:5,
+              },
+              b:{
+                keyTitle:'↑',
+                type:'g',
+                g:0,
+              }
+            }
+          },
+          {
+            "x": 2580,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-l",
+            intros:{
+              a:{
+                keyTitle:'屏幕底行',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'→',
+                type:'g',
+                g:0,
+              }
+            }
+          },
+          {
+            "x": 2840,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-;",
+            title:':',
+            intros:{
+              a:{
+                keyTitle:'ex命令',
+                type:'y',
+                g:0,
+              },
+              b:{
+                keyTitle:'重复/t/T/f/F',
+                type:'g'
+              },
+            }
+          },
+          {
+            "x": 3100,
+            "y": 815,
+            "width": 230,
+            "height": 230,
+            "id": "k-'",
+            title:'"',
+            intros:{
+              a:{
+                keyTitle:'寄存器标识',
+                type:'bb',
+                g:2,
+              },
+              b:{
+                keyTitle:'跳转到标注的行首',
+                type:'g',
+                g:4,
+              },
+            }
+          },
+          // {
+          //   "x": 3359,
+          //   "y": 815,
+          //   "width": 419,
+          //   "height": 230,
+          //   "id": "k-enter"
+          // },
+          // {
+          //   "x": 50,
+          //   "y": 1068,
+          //   "width": 552,
+          //   "height": 230,
+          //   "id": "k-shift-left"
+          // },
+          {
+            "x": 631,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-z",
+            intros:{
+              a:{
+                keyTitle:'退出',
+                type:'bb'
+              },
+              b:{
+                keyTitle:'附加命令',
+                type:'bb'
+              },
+            }
+          },
+          {
+            "x": 890,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-x",
+            intros:{
+              a:{
+                keyTitle:'退格',
+                type:'y',
+                g:0,
+              },
+              b:{
+                keyTitle:'删除字符',
+                type:'y',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 1150,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-c",
+            intros:{
+              a:{
+                keyTitle:'修改至行末',
+                type:'y cr',
+                g:6,
+              },
+              b:{
+                keyTitle:'修改',
+                type:'o cr',
+                g:1,
+              },
+            }
+          },
+          {
+            "x": 1409,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-v",
+            intros:{
+              a:{
+                keyTitle:'可视行模式',
+                type:'y',
+                g:1,
+              },
+              b:{
+                keyTitle:'可视模式',
+                type:'y',
+                g:1,
+              },
+            }
+          },
+          {
+            "x": 1669,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-b",
+            intros:{
+              a:{
+                keyTitle:'前一单词',
+                type:'g',
+                g:0,
+              },
+              b:{
+                keyTitle:'前一单词',
+                type:'g',
+                g:0,
+              },
+            }
+          },
+          {
+            "x": 1928,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-n",
+            intros:{
+              a:{
+                keyTitle:'查找上一处',
+                type:'g',
+                g:3,
+              },
+              b:{
+                keyTitle:'查找下一处',
+                type:'g',
+                g:3,
+              },
+            }
+          },
+          {
+            "x": 2188,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-m",
+            intros:{
+              a:{
+                keyTitle:'屏幕中间行',
+                type:'g',
+                g:5,
+              },
+              b:{
+                keyTitle:'设置标注',
+                type:'y',
+                g:4,
+              },
+            }
+          },
+          {
+            "x": 2447,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-,",
+            title:'<',
+            intros:{
+              a:{
+                keyTitle:'反向缩进',
+                type:'o',
+                g:6,
+              },
+              b:{
+                keyTitle:'反向/t/T/f/F',
+                type:'g'
+              },
+            }
+          },
+          {
+            "x": 2707,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-.",
+            title:'>',
+            intros:{
+              a:{
+                keyTitle:'缩进',
+                type:'o',
+                g:6,
+              },
+              b:{
+                keyTitle:'重复命令',
+                type:'y',
+                g:1,
+              },
+            }
+          },
+          {
+            "x": 2966,
+            "y": 1068,
+            "width": 230,
+            "height": 230,
+            "id": "k-/",
+            title:'?',
+            intros:{
+              a:{
+                keyTitle:'向下搜索',
+                type:'g',
+                g:3,
+              },
+              b:{
+                keyTitle:'向上搜索',
+                type:'g',
+                g:3,
+              },
+            }
+          },
+          // {
+          //   "x": 3222,
+          //   "y": 1068,
+          //   "width": 555,
+          //   "height": 230,
+          //   "id": "k-shift-right"
+          // },
+          // {
+          //   "x": 50,
+          //   "y": 1320,
+          //   "width": 289,
+          //   "height": 230,
+          //   "id": "k-ctrl"
+          // },
+          // {
+          //   "x": 372,
+          //   "y": 1320,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-fn"
+          // },
+          // {
+          //   "x": 631,
+          //   "y": 1320,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-win"
+          // },
+          // {
+          //   "x": 890,
+          //   "y": 1320,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-alt"
+          // },
+          // {
+          //   "x": 1150,
+          //   "y": 1320,
+          //   "width": 1527,
+          //   "height": 230,
+          //   "id": "k-space"
+          // },
+          // {
+          //   "x": 2707,
+          //   "y": 1320,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-alt-r"
+          // },
+          // {
+          //   "x": 2967,
+          //   "y": 1320,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-win-r"
+          // },
+          // {
+          //   "x": 3226,
+          //   "y": 1320,
+          //   "width": 230,
+          //   "height": 230,
+          //   "id": "k-context"
+          // },
+          // {
+          //   "x": 3489,
+          //   "y": 1320,
+          //   "width": 289,
+          //   "height": 230,
+          //   "id": "k-ctrl-r"
+          // }
+        ]
+      },
+      computed: {
+        keyboardScale(){
+          return this.keyboardMaxWidth/4000
+        },
+        keyList(){
+          return this.keysData.map(({x,y,width,height,id,title,intros})=>{
+            var obj={
+              name:id.substring(2),
+              left:x*this.keyboardScale,
+              top:y*this.keyboardScale,
+              width:width*this.keyboardScale,
+              height:height*this.keyboardScale,
+              intros
+            }
+            obj.title=title || obj.name.toUpperCase()
+            obj.currentStep=false;
+            for(var introType in obj.intros){
+              obj.intros[introType].currentStep=false;
+              // if(this.introShowGroup.length===0 || this.introShowGroup.indexOf(obj.intros[introType].g)>=0){
+              // if(obj.intros[introType].g<this.introShowStep || this.introShowStep===0){
+              //   obj.intros[introType].show=true
+              // }else{
+              //   obj.intros[introType].show=false
+              // }
+              obj.intros[introType].show=false
+              if(this.introShowStep===0){
+                obj.intros[introType].show=true
+                obj.intros[introType].currentStep=true;
+              }else{
+                if(obj.intros[introType].g<this.introShowStep){
+                  obj.intros[introType].show=true
+                }
+                if(obj.intros[introType].g===this.introShowStep-1){
+                  obj.currentStep=true;
+                  obj.intros[introType].currentStep=true;
+                }
+              }
+              
+            }  
+            
+            // console.log(obj)
+            return obj
+          })
+        }
+      },
+      mounted() {
+        window.addEventListener('resize',this.keyboardResize)
+        this.keyboardResize();
+      },
+      methods: {
+        keyboardResize(){
+          this.keyboardMaxWidth=window.innerWidth
+        }
+
+      }
+    })
+  </script>
+</body>
+
+</html>
