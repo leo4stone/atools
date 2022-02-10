@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>圈红十斗地主计分</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script> -->
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    td{
+      /* border: 1px solid #aaa; */
+    }
+    button{
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <el-container v-if="webPageStep===0" class="webPage step0">
+      <el-header style="text-align: center;">打牌计分器（斗地主/圈红十）
+        <!-- <el-button>新增</el-button> -->
+        <el-button type="primary" @click="addTeamDialogOpen">新增分组</el-button>
+
+        <el-dialog title="新增分组" width="90%" :visible.sync="addTeamDialogConfig.visible">
+          <el-form ref="addTeamDialog" :model="addTeamDialogConfig.form" :rules="addTeamDialogConfig.rules" label-width="80px">
+            <el-form-item label="组名" prop="title">
+              <el-input v-model="addTeamDialogConfig.form.title" autocomplete="off"></el-input>
+            </el-form-item>
+            <!-- <el-form-item label="成员" prop="members">
+              <el-input v-for="(member,m_i) in addTeamDialogConfig.form.members" :key="'addTeamMemberInput_'+m_i" v-model="addTeamDialogConfig.form.members[m_i]" autocomplete="off"></el-input>
+            </el-form-item> -->
+            <el-form-item v-for="(member,m_i) in addTeamDialogConfig.form.members" :key="'addTeamMemberInput_'+m_i" :label="'成员'+(m_i+1)" :prop="'members['+m_i+']'" :rules="{required: true, message: '名字不能为空', trigger: 'blur'}">
+              <el-input v-model="addTeamDialogConfig.form.members[m_i]" autocomplete="off"></el-input>
+            </el-form-item>
+            <el-form-item label="规则">
+              <el-select v-model="addTeamDialogConfig.form.gameType" @change="addTeamGameTypeOnChange" placeholder="请选择">
+                <el-option v-for="gameConfig in gameConfigs" :key="'addTeamGameTypeOption_'+gameConfig.gameType" :label="gameConfig.name" :value="gameConfig.gameType"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-form>
+          <div slot="footer" class="dialog-footer">
+            <el-button @click="addTeamDialogConfig.visible = false">取 消</el-button>
+            <el-button type="primary" @click="addTeamDialogOnSubmit">确 定</el-button>
+          </div>
+        </el-dialog>
+      </el-header>
+      <el-main>
+        <el-table :data="stageDataBase.teamList" style="width:100%;" border>
+          <el-table-column
+            type="index"
+            width="50">
+          </el-table-column>
+          <!-- <el-table-column
+            label="小组">
+            <template slot-scope="scope">
+              <el-descriptions column="2" border>
+                <el-descriptions-item label="组名">{{scope.row.title}}</el-descriptions-item>
+                <el-descriptions-item label="成员">{{matchTotalScoresCalc(scope.row).map((v,i)=>{return scope.row.members[i]+'('+v+')'}).join(',')}}</el-descriptions-item>
+                <el-descriptions-item label="类型">{{gameConfigs[scope.row.gameType].name}}</el-descriptions-item>
+                <el-descriptions-item label="场次">{{scope.row.matchList.length}}</el-descriptions-item>
+              </el-descriptions>
+            </template>
+          </el-table-column> -->
+          <el-table-column
+            label="组名">
+            <template slot-scope="scope">
+              {{scope.row.title}}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="成员">
+            <template slot-scope="scope">
+              {{matchTotalScoresCalc(scope.row).map((v,i)=>{return scope.row.members[i]+'('+v+')'}).join(',')}}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="类型"
+            align="center"
+            width="120">
+            <template slot-scope="scope">
+              {{gameConfigs[scope.row.gameType].name}}
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="场次"
+            align="center"
+            width="80">
+            <template slot-scope="scope">
+              {{scope.row.matchList.length}}
+            </template>
+          </el-table-column>
+          
+          <el-table-column
+            label="操作"
+            align="center"
+            width="80">
+            <template slot-scope="scope">
+              <el-button @click="enterTeam(scope.$index)">进入</el-button>
+            </template>
+          </el-table-column>
+          
+        </el-table>
+      </el-main>
+    </el-container>
+    <el-container v-if="webPageStep===1" class="webPage step1">
+      <el-descriptions  direction="vertical" border>
+        <div slot="title"><el-button type="default" icon="el-icon-arrow-left" circle @click="webPageStep=0"></el-button>&nbsp; <div style="display: inline-block; vertical-align: middle;">{{currentTeam.title}}</div></div>
+        <div slot="extra"><el-button type="primary" @click="addMatch">新增场次</el-button></div>
+        <!-- <el-descriptions-item label="组名">{{currentTeam.title}}</el-descriptions-item> -->
+        <el-descriptions-item label="成员">{{currentTeam.members.join(',')}}</el-descriptions-item>
+        <el-descriptions-item label="类型">{{gameConfigs[currentTeam.gameType].name}}</el-descriptions-item>
+        <el-descriptions-item label="场次">{{currentTeam.matchList.length}}</el-descriptions-item>
+      </el-descriptions>
+      <el-table :data="currentTeam.matchList" style="width:100%;" border>
+        <el-table-column
+          type="index"
+          align="center"
+          width="50">
+        </el-table-column>
+        <el-table-column
+          label="日期"
+          align="center"
+          width="120">
+          <template slot-scope="scope">
+            <div v-html="timeFormat(scope.row.startTime)"></div>
+            <!-- <el-button @click="matchCalcScores(scope.row)">提交</el-button> -->
+            <!-- ~~{{scope.row.scores}}~~ -->
+          </template>
+        </el-table-column>
+        <el-table-column
+          align="center"
+          v-for="(member,m_i) in currentTeam.members"
+          :key="'memberCol_'+m_i"
+          :label="member+'('+currentTotalScores[m_i]+')'">
+          <template slot-scope="scope">
+            <!-- {{consoleLog(scope)}} -->
+            <!-- {{member}} -->
+            <div style="display: flex; text-align: center; width: 100%;align-items: center;">
+              <div style="flex-grow:1;">
+                <button @click="matchSetOrder(scope.row,m_i)" style="border-radius: 50%; padding:0; width:20px; height:20px; text-align: center; line-height: 20px; border:none;">{{matchGetOrder(scope.row,m_i) || '🔘'}}</button>
+                <button @click="matchSetSp(scope.row,m_i)" :style="{border:'none',background:'none',padding:0,opacity:(matchGetSp(scope.row,m_i)===''?'0.1':1),color:(matchGetSp(scope.row,m_i)===''?'#ccc':'red')}">
+                  {{currentGameConfig.spConfig.icon}}
+                  {{(matchGetSp(scope.row,m_i) && scope.row.sps.length==1 && (currentGameConfig.gameType===1))?currentGameConfig.spConfig.icon:''}}
+                </button>
+              </div>
+              <div style="flex-grow:1">
+                {{scope.row.scores[m_i]}}
+  
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          align="center"
+          v-for="(scoreScale,s_i) in currentGameConfig.scoreScales"
+          :key="'scoreScale_'+s_i"
+          :label="scoreScale.label"
+          width="120">
+          <template slot-scope="scope">
+            <el-select style="width:60px;" v-model="scope.row.scales[s_i]" :disabled="scope.row.locked" placeholder="请选择" @change="matchCalcScores(scope.row)">
+              <el-option v-for="opts in scoreScale.options" :key="'scoreScaleOpt'+opts.value" :label="opts.label" :value="opts.value"></el-option>
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column
+          align="left"
+          label="操作"
+          width="140">
+          <template slot-scope="scope">
+            <el-button @click="matchLockToggle(scope.row)" :type="scope.row.locked?'warning':'success'" :icon="scope.row.locked?'el-icon-lock':'el-icon-unlock'"></el-button>
+            <el-button @click="matchDelete(scope.row,scope.$index)" :disabled="scope.row.locked" type="danger" icon="el-icon-delete"></el-button>
+            <!-- ~~{{scope.row.scores}}~~ -->
+            <i v-if="scope.row.scores[0]===0" style="color:red;" class=" el-icon-warning"></i>
+          </template>
+        </el-table-column>
+        
+      </el-table>
+    </el-container>
+    <!-- <table border="1" width="100%">
+      <tr>
+        <td colspan="99" align="right">
+          <select v-model="gameType"  @change="gameTypeOnChange" style="font-size: 24px; float: left;">
+            <option v-for="v in gameTypes" :value="v.value">{{v.label}}</option>
+          </select>
+          <button @click="copyScores">复制分数</button>
+          <button @click="addRow">添加</button>
+
+        </td>
+      </tr>
+      <tr>
+        <td>序号</td>
+        <td v-for="(u,i) in users">{{u}}({{totalScore[i]}})</td>
+        <td v-if="gameType===0">加倍</td>
+        <td v-if="gameType===0">炸弹</td>
+        <td v-if="gameType===1">亮牌</td>
+      </tr>
+      <tr v-for="(info,info_i) in infos">
+        <td>{{info_i+1}}</td>
+        <td v-for="(u,m_i) in users">
+          <div style="display: flex; text-align: center; width: 100%;align-items: center;">
+            <div style="flex-grow:1;">
+              <button @click="setOrder(info,m_i)" style="border-radius: 50%; padding:0; width:20px; height:20px; text-align: center; line-height: 20px; border:none;">{{getOrder(info,m_i) || '🔘'}}</button>
+              <button @click="setRole(info,m_i)" :style="{border:'none',background:'none',padding:0,opacity:(getRole(info,m_i)===''?'0.1':1),color:(getRole(info,m_i)===''?'#ccc':'red')}">{{uaNames[gameType]}}{{(getRole(info,m_i)&&info.ua.length==1&&gameType===1)?uaNames[gameType]:''}}</button>
+            </div>
+            <div style="flex-grow:1">
+              {{getScore(info,m_i)}}
+
+            </div>
+          </div>
+          
+        </td>
+        <td v-if="gameType===0">
+          <select v-model="info.scale">
+            <option v-for="v in scaleOption" :value="v">{{v}}</option>
+          </select>
+        </td>
+        <td v-if="gameType===0">
+          <select v-model="info.bomb">
+            <option :value="0">0</option>
+            <option v-for="v in bombLength" :value="v">{{v}}</option>
+          </select>
+        </td>
+        <td v-if="gameType===1"><label>
+          <input type="checkbox" v-model="info.showA">
+        </label></td>
+      </tr>
+    </table> -->
+  </div>
+  <script>
+    function copyTxt(str) {
+      var copyTextarea=document.createElement('textarea');
+      copyTextarea.style.opacity='0';
+      copyTextarea.value=str;
+      document.body.appendChild(copyTextarea);
+      copyTextarea.select(); // 选择对象
+      document.execCommand('Copy'); // 执行浏览器复制命令
+      setTimeout(function(){document.body.removeChild(copyTextarea);copyTextarea=null;alert("已复制好，可贴粘。");},0)
+      
+    }
+    Vue.prototype.$ELEMENT = { size: 'mini', zIndex: 3000 };
+    // Vue.use(Element, { size: 'mini', zIndex: 3000 });
+    var app = new Vue({
+      el: '#app',
+      data: {
+        gameConfigs:[
+          {
+            gameType:0,
+            name:'斗地主',
+            spConfig:{
+              label:'地主',
+              icon:'🛎️'
+            },
+            memberNum:3,
+            scoreScales:[
+              {
+                label:'叫分',
+                type:'select',
+                options:(function(){
+                  return [1,2,3,6,12,24].map(function(v){
+                    return {
+                      label:v,
+                      value:v
+                    }
+                  })
+                })(),
+                defaultValue:1,
+                handler(v,score){
+                  return score*v
+                },
+              },
+              {
+                label:'炸弹',
+                type:'select',
+                options:(function(){
+                  return [0,1,2,3,4,5,6,7,8,9,10].map(function(v){
+                    return {
+                      label:v,
+                      value:v
+                    }
+                  })
+                })(),
+                defaultValue:0,
+                handler(v,score){
+                  return score*Math.pow(2,v)
+                },
+              }
+            ],
+            scoresCalc(matchData){
+              var {sps,order,scales}=matchData;
+              console.log('scoresCalc',JSON.stringify([sps,order,scales]))
+              // var ua=info.ua,order=info.order;
+              if(sps.length!=1 || order.length!==3){
+                return [0,0,0]
+              }
+              var scores=[];
+              order.map(function(v){
+                scores.push({
+                  m_i:v,
+                  isSp:sps.indexOf(v)>=0,
+                  score:0
+                })
+              });
+              if(scores[0].isSp){
+                scores[0].score=2;
+                scores[1].score=-1
+                scores[2].score=-1
+              }else{
+                scores[0].score=1;
+                if(scores[1].isSp){
+                  scores[1].score=-2
+                  scores[2].score=1
+                }else{
+                  scores[1].score=1
+                  scores[2].score=-2
+                }
+              }
+              var fullScale=scales[0]*Math.pow(2,scales[1]);
+              scores.map(function(v){
+                v.score=v.score*fullScale
+              })
+              var uscores=[]
+              scores.map(function(v){
+                uscores[v.m_i]=v.score
+              })
+              console.log('uscores',uscores)
+              return uscores
+            },
+          },
+          {
+            gameType:1,
+            name:'圈红十',
+            spConfig:{
+              label:'红A',
+              icon:'🅰️'
+            },
+            memberNum:4,
+            scoreScales:[
+              {
+                label:'亮A',
+                type:'select',
+                options:[
+                  {
+                    label:'否',
+                    value:1
+                  },
+                  {
+                    label:'是',
+                    value:2
+                  }
+                ],
+                defaultValue:1,
+                handler(v,score){
+                  return score*v
+                },
+              },
+            ],
+            scoresCalc(matchData){
+              var {sps,order,scales}=matchData;
+              console.log('scoresCalc',JSON.stringify([sps,order,scales]))
+              // var ua=info.ua,order=info.order;
+              if(sps.length<1 || sps.length>2 || order.length!==4){
+                return [0,0,0,0]
+              }
+              var scores=[];
+              order.map(function(v){
+                scores.push({
+                  m_i:v,
+                  isSp:sps.indexOf(v)>=0,
+                  score:0
+                })
+              });
+              if(sps.length===1){
+                if(scores[0].isSp){
+                  scores[0].score=12;
+                  scores[1].score=-4;
+                  scores[2].score=-4;
+                  scores[3].score=-4;
+                }
+                if(scores[1].isSp){
+                  scores[0].score=1;
+                  scores[1].score=-3;
+                  scores[2].score=1;
+                  scores[3].score=1;
+                }
+                if(scores[2].isSp){
+                  scores[0].score=2;
+                  scores[1].score=2;
+                  scores[2].score=-6;
+                  scores[3].score=2;
+                }
+                if(scores[3].isSp){
+                  scores[0].score=4;
+                  scores[1].score=4;
+                  scores[2].score=4;
+                  scores[3].score=-12;
+                }
+              }else{
+                scores[0].score=1;
+                if(scores[1].isSp===scores[0].isSp){
+                  scores[0].score+=2;
+                  scores[1].score=3
+                  scores[2].score=-3
+                  scores[3].score=-3
+                }else{
+                  scores[1].score=-1;
+                  if(scores[2].isSp===scores[0].isSp){
+                    scores[0].score+=1;
+                    scores[1].score-=1
+                    scores[2].score=2
+                    scores[3].score=-2
+                  }else{
+                    scores[2].score=-1
+                    scores[3].score=1
+                  }
+                }
+              }
+              var fullScale=scales[0];
+              scores.map(function(v){
+                v.score=v.score*fullScale
+              })
+              var uscores=[]
+              scores.map(function(v){
+                uscores[v.m_i]=v.score
+              })
+              return uscores
+            },
+          }
+        ],
+        stageDataId:'pokerData_shilei_20220207',
+        stageDataBase:{
+          teamList:[
+            // {
+            //   title:'圈红十-北京站',
+            //   members:['雪', '磊', '爸', '妈'],
+            //   gameType:1,
+            //   matchList:[
+            //     {
+            //       startTime:0,
+            //       locked:false,
+            //       sps: [],
+            //       order: [],
+            //       scales:[1],
+            //       scores:[0,0,0,0]
+            //     }
+            //   ],
+
+            // },
+            // {
+            //   title:'斗地主-北京站',
+            //   members:['雪', '磊', '爸'],
+            //   gameType:0,
+            //   matchList:[
+            //     {
+            //       startTime:0,
+            //       locked:false,
+            //       sps: [],
+            //       order: [],
+            //       scales:[3,2],
+            //       scores:[0,0,0]
+            //     }
+            //   ],
+
+            // }
+          ]
+        },
+        webPageStep:0,
+        addTeamDialogConfig:{
+          visible:false,
+          form:{
+            title:'',
+            members:[],
+            gameType:0,
+          },
+          rules: {
+            title: [
+              { required: true, message: '请输入小组名称', trigger: 'blur' },
+            ],
+          }
+        },
+        currentTeamIndex:0,
+        // usersOptions: ['雪', '磊', '爸', '妈'],
+        // users:[],
+        // userLength:4,
+        // gameTypes:[{label:'斗地主',value:0},{label:'圈红十',value:1}],
+        // gameType:1,
+        // uaNames:['🛎️','🅰️'],
+        // scaleOption:[1,2,3,6,12,24],
+        // bombLength:14,
+        // infos: [{
+        //   ua: [],
+        //   order: [],
+        //   showA:false,
+        //   scale:1,
+        //   bomb:0
+        // }]
+      },
+      computed:{
+        currentTeam(){
+          return this.stageDataBase.teamList[this.currentTeamIndex]
+        },
+        currentGameConfig(){
+          return this.gameConfigs[this.currentTeam.gameType]
+        },
+        currentTotalScores(){
+          return this.matchTotalScoresCalc(this.currentTeam)
+        },
+      },
+      mounted(){
+        this.loadStageDataBase();
+      },
+      methods:{
+        consoleLog(v){
+          console.log(v);
+          return 'consoleLog'
+        },
+        timeFormat(t){
+          var tDate=new Date(t);
+          var obj={
+            YYYY:tDate.getFullYear(),
+            MM:tDate.getMonth()+1,
+            DD:tDate.getDate(),
+            HH:tDate.getHours(),
+            mm:tDate.getMinutes()
+          }
+          for(var k in obj){
+            if(obj[k]<10){
+              obj[k]='0'+obj[k]
+            }
+          }
+          return obj.YYYY+'/'+obj.MM+'/'+obj.DD+'<br />'+obj.HH+':'+obj.mm
+        },
+        saveStageDataBase(){
+          localStorage.setItem(this.stageDataId,JSON.stringify(this.stageDataBase));
+        },
+        loadStageDataBase(){
+          var stageStorage = localStorage.getItem(this.stageDataId);
+          if(!stageStorage){
+            return false;
+          }
+          this.$set(this,'stageDataBase',JSON.parse(stageStorage));
+        },
+        matchTotalScoresCalc(teamData){
+          var scores=teamData.members.map(()=>{
+            return 0
+          });
+          teamData.matchList.map((match)=>{
+            match.scores.map(function(n,i){
+              scores[i]+=n
+            })
+          })
+          return scores
+
+        },
+        addTeamDialogOpen(){
+          this.addTeamDialogConfig.form={
+            title:'',
+            members:['','',''],
+            gameType:0,
+          };
+          this.addTeamDialogConfig.visible=true;
+        },
+        addTeamGameTypeOnChange(){
+          console.log('addTeamGameTypeOnChange')
+          var memberNum=this.gameConfigs[this.addTeamDialogConfig.form.gameType].memberNum;
+          var diffNum=this.addTeamDialogConfig.form.members.length-memberNum;
+          if(diffNum>0){
+            this.addTeamDialogConfig.form.members.splice(memberNum,diffNum)
+          }else{
+            while(diffNum<0){
+              this.addTeamDialogConfig.form.members.push('');
+              diffNum++
+            }
+          }
+        },
+        addTeamDialogOnSubmit(){
+          this.$refs['addTeamDialog'].validate((valid) => {
+            console.log('form valid',valid)
+            if (valid) {
+              var teamData=JSON.parse(JSON.stringify(this.addTeamDialogConfig.form));
+              teamData.matchList=[];
+              this.stageDataBase.teamList.push(teamData)
+              this.addTeamDialogConfig.visible=false;
+            } else {
+              console.log('error submit!!');
+              return false;
+            }
+          });
+        },
+        enterTeam(i){
+          this.currentTeamIndex=i;
+          this.webPageStep=1;
+        },
+        addMatch(){
+          var matchData={
+            startTime:new Date().valueOf(),
+            sps: [],
+            order: [],
+            locked:false,
+            scales:this.currentGameConfig.scoreScales.map((v)=>{return v.defaultValue}),
+            scores:this.currentTeam.members.map(()=>{return 0})
+          }
+          this.currentTeam.matchList.unshift(matchData)
+        },
+        matchSetOrder(matchData,m_i){
+          if(matchData.locked){
+            this.$message.error('条目已锁定');
+            return false;
+          }
+          if(matchData.order.length>=this.currentTeam.members.length){
+            matchData.order=[]
+          }
+          var order=matchData.order;
+          var m_order=order.indexOf(m_i)
+          if(m_order>=0){
+            order.splice(m_order,1)
+          }
+          order.push(m_i)
+          this.matchCalcScores(matchData);
+        },
+        matchGetOrder(matchData,m_i){
+          var order=matchData.order;
+          var m_order=order.indexOf(m_i)
+          if(m_order>=0){
+            return ['🚩','2','3','🏳️'][m_order]
+          }else{
+            return ''
+          }
+        },
+        matchSetSp(matchData,m_i){
+          if(matchData.locked){
+            this.$message.error('条目已锁定');
+            return false;
+          }
+          switch(this.currentGameConfig.gameType){
+            case 0:
+              matchData.sps=[];
+              break;
+            case 1:
+              if(matchData.sps.length>1){
+                matchData.sps=[];
+              }
+              break;
+          }
+          var sps=matchData.sps;
+          var sp_order=sps.indexOf(m_i)
+          if(sp_order>=0){
+            sps.splice(sp_order,1)
+          }else{
+            sps.push(m_i)
+          }
+          this.matchCalcScores(matchData);
+        },
+        matchGetSp(matchData,m_i){
+          var sps=matchData.sps;
+          var sp_order=sps.indexOf(m_i)
+          if(sp_order>=0){
+            return true
+          }else{
+            return ''
+          }
+        },
+        matchCalcScores(matchData){
+          console.log('matchCalcScores')
+          this.$set(matchData,'scores',this.currentGameConfig.scoresCalc(matchData));
+          this.saveStageDataBase();
+          // matchData.scores=this.currentGameConfig.scoresCalc(matchData);
+        },
+        matchLockToggle(matchData){
+          matchData.locked=!matchData.locked;
+          
+          this.$message.success('条目'+(matchData.locked?'锁定':'解锁')+'成功');
+          this.saveStageDataBase();
+        },
+        matchDelete(matchData,$index){
+          if(matchData.locked){
+            this.$message.error('条目已锁定');
+            return false;
+          }
+          
+          this.$confirm('删除的本条数据不可恢复，确认是否删除', '删除场次', {
+            confirmButtonText: '删除',
+            cancelButtonText: '取消',
+            confirmButtonClass:'el-button--danger',
+            type: 'error'
+          }).then(() => {
+            this.currentTeam.matchList.splice($index,1);
+            this.$message({
+              type: 'success',
+              message: '删除成功!'
+            });
+          }).catch(() => {
+            // this.$message({
+            //   type: 'info',
+            //   message: '已取消删除'
+            // });          
+          });
+        },
+      },
+      _methods:{
+        copyScores(){
+          var arrs=[];
+          arrs.push(this.users.map((u,m_i)=>{
+            return u+'('+this.totalScore[m_i]+')'
+          }));
+          this.infos.map((info)=>{
+            var score=this.getScore(info);
+            arrs.push(score)
+          })
+
+          var strs = arrs.map(function (tr) { return tr.join('\t') }).join('\n')
+          copyTxt(strs)
+        },
+        
+      }
+    })
+  </script>
+</body>
+
+</html>
