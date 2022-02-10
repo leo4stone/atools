@@ -1,2 +1,1 @@
-vim键位查看
-https://wfesorg.github.io/atools/vimkeyboard.html
+<a href="https://wfesorg.github.io/atools/vimkeyboard.html" target="_blank">vim键位查看</a>
