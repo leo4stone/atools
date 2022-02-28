@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>格式化预览和复制工具</title>
+  <style>
+    body {
+      /* display: flex; */
+    }
+
+    td {
+      /* border: 1px solid #000; */
+    }
+
+    .el-table__cell,
+    .el-table__cell .cell {
+      padding: 0 !important;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script> -->
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/xlsx@0.18.0/xlsx.mini.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <el-container>
+      <el-header>
+        订单数据表格化
+      </el-header>
+      <el-container direction="vertical">
+        <el-main style="padding:5px">
+          <el-input type="textarea" :rows="20" :placeholder="inputPlaceholder" v-model="inputStr">
+          </el-input>
+        </el-main>
+        <el-main style="padding:5px; text-align: right;">
+          <el-row :gutter="10">
+            <el-col :span="20">&nbsp;
+            </el-col>
+            <el-col :span="4">
+              <el-button type="primary" @click="inputValue2List">预览</el-button>
+            </el-col>
+          </el-row>
+        </el-main>
+        <el-main style="padding:5px">
+          <el-table :data="inputList" style="width: 100%">
+            <el-table-column v-for="(i,n) in 3" :key="' td_'+n" align="center"
+              :label="['账号',`单号(共${titleInfo.len}条)`,`金额(共${titleInfo.sum}元)`][n]" :width="['','','60px'][n]">
+              <template slot-scope="scope">
+                <el-input v-model="scope.row[n]"></el-input>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-main>
+        <el-main style="padding:5px;" v-if="inputList.length ||true">
+          <el-row :gutter="10">
+            <el-col :span="20">
+              <el-input placeholder="请输入文件名" v-model="fileName">
+                <template slot="append">.xlsx</template>
+              </el-input>
+            </el-col>
+            <el-col v-if="inputList.length" :span="4">
+              <el-button type="success" @click="downloadExcel">下载</el-button>
+            </el-col>
+          </el-row>
+        </el-main>
+      </el-container>
+    </el-container>
+
+  </div>
+  <script>
+    //获取文本
+    Vue.prototype.$ELEMENT = { size: 'mini', zIndex: 3000 };
+
+    var app = new Vue({
+      el: '#app',
+      data: {
+        inputPlaceholder: `粘贴订单记录到此处，格式为：
+------------------------------------------
+雪儿:
+tb1*****606+14804723******1597+275+***旗舰店
+
+雪儿:
+tb89*****13+1479********597276+315+芭**旗舰店
+------------------------------------------
+点击预览按钮查看表格数据，点击复制按钮复制格式化后的内容到截图板`,
+        inputStr: ``,
+        inputList: [],
+        fileName: '订单数据' + (new Date().toLocaleString()).replace(/\/|\:|\s/g, '_')
+      },
+      computed: {
+        titleInfo() {
+          var obj = {
+            len: this.inputList.length,
+            sum: eval(this.inputList.map((v) => { return v[2] }).join('+')) || 0
+          }
+          return obj
+        }
+      },
+      methods: {
+        inputValue2List() {
+          try {
+            this.inputList = this.inputStr.split(/.*\:/g).map(function (v) { return v.trim() }).filter(function (v) { return v !== '' }).map(function (v) { return v.split('+') }).map(function (v) { return [v[0] + '', v[1] + '', v[2] * 1] });
+            // var total = [`共${this.inputList.length}单`, `合计：`, 0];
+            // this.inputList.map((v) => {
+            //   total[2] += v[2]
+            // })
+            // this.inputList.push(total)
+          }
+          catch (error) {
+            console.log('数据有误，请检查填写格式', error)
+            alert('数据有误，请检查填写格式')
+          }
+        },
+        downloadExcel() {
+          var sheetArr = JSON.parse(JSON.stringify(this.inputList));
+          sheetArr.unshift([`账号`, `单号（共${this.titleInfo.len}单）`, `金额（共${this.titleInfo.sum}元）`])
+          sheetArr.unshift([this.fileName])
+          // sheetArr.push([`单号(共${this.titleInfo.len}条)`, `金额合计：`, `(共${this.titleInfo.sum}元)`])
+          var sheet = XLSX.utils.aoa_to_sheet(sheetArr);
+          sheet['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 20 }]
+          sheet['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }
+          ];
+          // sheet['!ref'] = XLSX.utils.encode_range({
+          //   s: { c: 0, r: 0 },
+          //   e: { c: 3, r: this.titleInfo.len }
+          // });
+          // sheet['D1'] = { v: '总单数:' + this.titleInfo.len };
+          // sheet['D2'] = {
+          //   v: '总金额:' + this.titleInfo.sum,
+          //   f: '"总金额:"&SUM(C1:C' + this.titleInfo.len + ')'
+          // };
+          // sheet['E6'] = { v: 'Total' };
+          var fileName = this.fileName + '.xlsx'
+          openDownloadDialog(sheet2blob(sheet), fileName);
+
+        }
+      }
+    })
+    function copyTxt(str) {
+      var copyTextarea = document.createElement('textarea');
+      copyTextarea.value = str;
+      document.body.appendChild(copyTextarea);
+      copyTextarea.select(); // 选择对象
+      document.execCommand('Copy'); // 执行浏览器复制命令
+      setTimeout(function () { document.body.removeChild(copyTextarea); alert("已复制好，可贴粘。"); }, 0)
+
+    }
+    // 将一个sheet转成最终的excel文件的blob对象，然后利用URL.createObjectURL下载
+    function sheet2blob(sheet, sheetName) {
+      sheetName = sheetName || 'sheet1';
+      var workbook = {
+        SheetNames: [sheetName],
+        Sheets: {}
+      };
+      workbook.Sheets[sheetName] = sheet; // 生成excel的配置项
+
+      var wopts = {
+        bookType: 'xlsx', // 要生成的文件类型
+        bookSST: true, // 是否生成Shared String Table，官方解释是，如果开启生成速度会下降，但在低版本IOS设备上有更好的兼容性
+        type: 'binary'
+      };
+      var wbout = XLSX.write(workbook, wopts);
+      var blob = new Blob([s2ab(wbout)], {
+        type: "application/octet-stream"
+      }); // 字符串转ArrayBuffer
+      function s2ab(s) {
+        var buf = new ArrayBuffer(s.length);
+        var view = new Uint8Array(buf);
+        for (var i = 0; i != s.length; ++i) view[i] = s.charCodeAt(i) & 0xFF;
+        return buf;
+      }
+      return blob;
+    }
+
+    function openDownloadDialog(url, saveName) {
+      if (typeof url == 'object' && url instanceof Blob) {
+        url = URL.createObjectURL(url); // 创建blob地址
+      }
+      var aLink = document.createElement('a');
+      aLink.href = url;
+      aLink.download = saveName || ''; // HTML5新增的属性，指定保存文件名，可以不要后缀，注意，file:///模式下不会生效
+      var event;
+      if (window.MouseEvent) event = new MouseEvent('click');
+      else {
+        event = document.createEvent('MouseEvents');
+        event.initMouseEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+      }
+      aLink.dispatchEvent(event);
+    }
+  </script>
+</body>
+
+</html>
