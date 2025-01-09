@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Quantum System Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #00ff00;
+            font-family: monospace;
+            overflow: hidden;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: inherit;
+            z-index: 1;
+        }
+
+        #output {
+            position: absolute;
+            top: 80px;  /* header高度 + padding */
+            left: 20px;
+            right: 20px;
+            bottom: 20px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #333;
+            background: rgba(0,0,0,0.3);
+        }
+
+        /* 暗色模式 - 默认 */
+        body.dark-mode {
+            background: #000;
+            color: #00ff00;
+        }
+        
+        /* 亮色模式 */
+        body.light-mode {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        /* ...existing color styles... */
+        .command { color: inherit; }
+        .yellow { color: #ffff00; }
+        .green { color: #00ff00; }
+        .cyan { color: #00ffff; }
+
+        /* 模式特定的颜色调整 */
+        .light-mode .yellow { color: #cccc00; }
+        .light-mode .green { color: #006600; }
+        .light-mode .cyan { color: #008888; }
+
+        /* 添加新的颜色类 */
+        .red { color: #ff3333; }
+        .blue { color: #3377ff; }
+        .purple { color: #9933ff; }
+
+        /* 为亮色模式添加对应的颜色 */
+        .light-mode .red { color: #cc0000; }
+        .light-mode .blue { color: #0044cc; }
+        .light-mode .purple { color: #6600cc; }
+
+        /* 添加命令输入专用的颜色样式 */
+        .command-input {
+            color: #ffcc00; /* 金黄色用于输入命令 */
+        }
+
+        .light-mode .command-input {
+            color: #996600; /* 亮色模式下的深金色 */
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background-color: #ffcc00;
+            margin-left: 1px;
+            animation: blink 1s step-end infinite;
+        }
+
+        .light-mode .cursor {
+            background-color: #996600;
+        }
+
+        /* 帮助弹窗样式 */
+        .help-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #333;
+            padding: 20px;
+            z-index: 1000;
+            max-width: 600px;
+            color: #00ff00;
+        }
+
+        .help-modal.show {
+            display: block;
+        }
+
+        .help-modal h2 {
+            color: #00ffff;
+            margin-top: 0;
+        }
+
+        .help-modal ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .help-modal li {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body class="dark-mode">
+    <div id="header">
+        <span class="cyan">=== QUANTUM SYSTEM ONLINE ===</span>
+        <p>Press Enter to start | ESC to exit</p>
+    </div>
+    <div id="output"></div>
+
+    <div class="help-modal" id="helpModal">
+        <h2>量子系统模拟器使用说明</h2>
+        <ul>
+            <li><span class="cyan">Enter</span>: 开始输入命令/执行命令/返回输入模式</li>
+            <li><span class="cyan">ESC</span>: 退出系统</li>
+            <li><span class="cyan">任意键</span>: 在输入模式下输入命令</li>
+            <li><span class="cyan">任意键</span>: 在输出模式下加速/触发额外输出</li>
+            <li><span class="cyan">F1</span>: 显示/隐藏帮助</li>
+        </ul>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        let isRunning = true;
+        let currentMode = 'WAITING'; // WAITING, INPUT, OUTPUT
+        let currentInputDiv = null;
+        let currentCommand = '';
+        
+        const COMMAND_PREFIX = 'root@quantum:~# ';
+
+        const CONFIG = {
+            commands: {
+                system: {
+                    patterns: [
+                        'systemctl start quantum-core',
+                        'systemctl status quantum-services',
+                        'systemctl restart quantum-daemon',
+                        './quantum-cli --start --verbose',
+                        'service quantum-engine start'
+                    ],
+                    outputs: [
+                        '[{hash}] System {state}: CPU={cpu}% MEM={mem}% DISK={disk}% NET={net}Mbps',
+                        '[{hash}] Quantum Core initialized with {qubits} qubits',
+                        '[{hash}] Service status: {service} is {status}',
+                        '[{hash}] Quantum entropy pool: {mem}MB available',
+                        '[{hash}] Core temperature: {cpu}°C - Within normal range',
+                        '[{hash}] Quantum state coherence: {progress}% maintained',
+                        '[{hash}] System load average: {cpu}% over last 5 minutes',
+                        '[{hash}] Memory page faults: {count} in last minute',
+                        '[{hash}] Quantum bus speed: {net} GHz',
+                        '[{hash}] Quantum registry synchronization: {progress}% complete'
+                    ],
+                    color: 'cyan'
+                },
+                docker: {
+                    patterns: [
+                        'docker run -d --name quantum-container quantum-image:latest',
+                        'docker-compose up -d quantum-stack',
+                        'docker build -t quantum-image .',
+                        'docker exec -it quantum-container bash',
+                        'docker logs quantum-container'
+                    ],
+                    outputs: [
+                        '[{hash}] Container {container} started with ID: {id}',
+                        '[{hash}] Network {network} connected, exposing ports: {ports}',
+                        '[{hash}] Building layer {progress}/100: {size}MB processed',
+                        '[{hash}] Container health check: {status}',
+                        '[{hash}] Volume mount: {size}GB attached to {container}',
+                        '[{hash}] Container CPU throttling: {cpu}% limit reached',
+                        '[{hash}] Network I/O: {net}MB/s incoming, {disk}MB/s outgoing',
+                        '[{hash}] Container memory usage: {mem}MB of {size}GB allocated',
+                        '[{hash}] Image layers optimized: {count} layers combined',
+                        '[{hash}] Container restart policy: {status} with {count} attempts'
+                    ],
+                    color: 'blue'
+                },
+                security: {
+                    patterns: [
+                        'ssh admin@192.168.1.100 -p 2222',
+                        'openssl req -new -x509 -nodes -out quantum.crt',
+                        'fail2ban-client status',
+                        'ufw allow from {ip} to any port 443',
+                        'iptables -A INPUT -p tcp --dport 22 -j ACCEPT'
+                    ],
+                    outputs: [
+                        '[{hash}] Security alert: {attack_type} from {ip}',
+                        '[{hash}] SSL Certificate generated for {domain}',
+                        '[{hash}] Firewall rule added: {ip} -> port {ports}',
+                        '[{hash}] Failed login attempts: {count} from {ip}',
+                        '[{hash}] Security scan complete: {count} vulnerabilities found',
+                        '[{hash}] Certificate expiration: {count} days remaining',
+                        '[{hash}] Blocked IPs in last hour: {count} addresses',
+                        '[{hash}] SSH key fingerprint: {hash}',
+                        '[{hash}] Security patch level: {progress}% compliant',
+                        '[{hash}] Access granted to {ip} for service {service}'
+                    ],
+                    color: 'red'
+                },
+                cloud: {
+                    patterns: [
+                        'terraform apply -auto-approve',
+                        'aws eks update-kubeconfig --name quantum-cluster',
+                        'az aks get-credentials --resource-group quantum-rg',
+                        'gcloud container clusters get-credentials quantum-prod',
+                        'aws cloudformation deploy --template-file quantum.yaml',
+                        'terraform plan -out=quantum.tfplan',
+                        'aws lambda update-function-code --function-name quantum-fn',
+                        'az acr build --registry quantum-registry --image api:latest .',
+                        'aws s3 sync ./quantum-data s3://quantum-bucket',
+                        'gcloud compute instances create quantum-instance'
+                    ],
+                    outputs: [
+                        '[{hash}] Cloud resources provisioned: {count} resources in {time}s',
+                        '[{hash}] Cluster {cluster} configured with {nodes} nodes',
+                        '[{hash}] Auto-scaling group capacity: {count}/{size} instances',
+                        '[{hash}] Load balancer provisioned: {ip}:{ports}',
+                        '[{hash}] Cloud storage bucket mounted: {size}GB available',
+                        '[{hash}] Function deployment complete: v{version}',
+                        '[{hash}] Network gateway configured: {net}Gbps throughput',
+                        '[{hash}] Cloud SQL instance status: {status}, {cpu}% CPU',
+                        '[{hash}] CDN cache hit ratio: {progress}% in last hour',
+                        '[{hash}] Cloud monitoring alerts: {count} active'
+                    ],
+                    color: 'purple'
+                },
+                development: {
+                    patterns: [
+                        'python3 quantum_analysis.py',
+                        'npm install quantum-sdk',
+                        'git clone https://github.com/quantum/core.git',
+                        'gradle build -x test',
+                        'mvn clean install',
+                        'cargo build --release',
+                        'go build ./cmd/quantum',
+                        'yarn add @quantum/core',
+                        'pip install -r requirements.txt',
+                        'dotnet publish -c Release'
+                    ],
+                    outputs: [
+                        '[{hash}] Building project: {progress}% complete',
+                        '[{hash}] Dependencies installed: {count} packages',
+                        '[{hash}] Repository cloned: {size}MB downloaded',
+                        '[{hash}] Test suite: {count} passed, {failed} failed',
+                        '[{hash}] Code coverage: {progress}% of codebase',
+                        '[{hash}] Linting completed: {count} issues found',
+                        '[{hash}] Documentation generated: {files} files',
+                        '[{hash}] Build artifacts: {size}MB in {time}s',
+                        '[{hash}] Package versioning: bumped to v{version}',
+                        '[{hash}] Development server running on port {ports}'
+                    ],
+                    color: 'green'
+                },
+                kubernetes: {
+                    patterns: [
+                        'kubectl apply -f quantum-deployment.yaml',
+                        'kubectl get pods -n quantum-system',
+                        'kubectl describe deployment quantum-core',
+                        'helm upgrade --install quantum ./quantum-chart',
+                        'kubectl port-forward svc/quantum-api 8080:80'
+                    ],
+                    outputs: [
+                        '[{hash}] Deploying to cluster: {pods} pods running',
+                        '[{hash}] Cluster status: {status}, nodes: {nodes}',
+                        '[{hash}] Pod quantum-{id} scheduled on node-{nodes}',
+                        '[{hash}] Service mesh traffic: {net}rps on quantum-api',
+                        '[{hash}] Horizontal scaling: {count} replicas active',
+                        '[{hash}] Resource utilization: {cpu}% CPU, {mem}% memory',
+                        '[{hash}] Rolling update: {progress}% complete',
+                        '[{hash}] Liveness probe: {status} for pod quantum-{id}',
+                        '[{hash}] ConfigMap {service} mounted in {pods} pods',
+                        '[{hash}] Ingress traffic distribution: {net}% success rate'
+                    ],
+                    color: 'yellow'
+                },
+                config: {
+                    patterns: [
+                        'nano /etc/quantum/config.yml',
+                        'vim /etc/systemd/system/quantum.service',
+                        'curl -X POST http://localhost:8080/api/config',
+                        'sed -i "s/DEBUG=false/DEBUG=true/" .env',
+                        'echo "export QUANTUM_HOME=/opt/quantum" >> ~/.bashrc',
+                        'chmod +x /usr/local/bin/quantum-cli',
+                        'chown -R quantum:quantum /var/lib/quantum/',
+                        'ln -s /etc/quantum/config.yml /etc/quantum/config.yml.default',
+                        'touch /var/log/quantum/quantum.log',
+                        'mkdir -p /etc/quantum/conf.d'
+                    ],
+                    outputs: [
+                        '[{hash}] Configuration file updated: {files} changes applied',
+                        '[{hash}] Permissions modified for {files} files in {path}',
+                        '[{hash}] Environment variables reloaded: {count} variables set',
+                        '[{hash}] API configuration response: status={status_code}',
+                        '[{hash}] System service configuration: {service} reloaded',
+                        '[{hash}] Log rotation configured: keeping {count} days of logs',
+                        '[{hash}] Config validation: {progress}% of checks passed',
+                        '[{hash}] Backup created: {path}/config.{timestamp}.bak',
+                        '[{hash}] Symbolic links updated: {count} links verified',
+                        '[{hash}] Configuration template generated: {files} files created'
+                    ],
+                    color: 'cyan'
+                },
+                ansible: {
+                    patterns: [
+                        'ansible-playbook deploy-quantum.yml',
+                        'ansible-galaxy install quantum-role',
+                        'ansible quantum-nodes -m ping',
+                        'ansible-playbook site.yml --check',
+                        'ansible-vault encrypt secrets.yml'
+                    ],
+                    outputs: [
+                        '[{hash}] PLAY [deploying quantum services] ****************',
+                        '[{hash}] TASK [setup] {server} ****************************',
+                        '[{hash}] ok: [{server}] => status=success changed={changed}',
+                        '[{hash}] changed: [{server}] => {count} items modified',
+                        '[{hash}] skipping: [{server}] => reason: {status}',
+                        '[{hash}] fatal: [{server}] => error code {status_code}',
+                        '[{hash}] included: [{server}] => file={files}',
+                        '[{hash}] PLAY RECAP *************************************',
+                        '[{hash}] Gathering Facts: [{server}] => {status}',
+                        '[{hash}] Handler triggered: restart {service}'
+                    ],
+                    color: 'green'
+                }
+            },
+
+            variables: {
+                state: ['NORMAL', 'OPTIMIZING', 'WARNING', 'DEGRADED'],
+                status: ['OK', 'DEGRADED', 'WARNING', 'CRITICAL'],
+                attack_type: ['SQL Injection', 'DDoS', 'Brute Force', 'XSS'],
+                service: ['auth-service', 'quantum-core', 'data-processor'],
+                container: ['quantum', 'cache', 'api', 'database'],
+                domain: ['quantum.local', 'api.quantum.dev', 'admin.quantum.dev'],
+                server: ['quantum-node1', 'quantum-node2', 'quantum-master'],
+                changed: ['true', 'false']
+            },
+
+            utils: {
+                randomInt: (min, max) => Math.floor(Math.random() * (max - min + 1)) + min,
+                randomIP: () => Array(4).fill(0).map(() => Math.floor(Math.random() * 256)).join('.'),
+                randomHash: () => Math.random().toString(36).substring(2, 10)
+            },
+
+            getRandomCommand() {
+                const categories = Object.keys(this.commands);
+                const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+                
+                const patterns = this.commands[randomCategory].patterns;
+                return patterns[Math.floor(Math.random() * patterns.length)];
+            }
+        };
+
+        function initializeInput() {
+            currentInputDiv = document.createElement('div');
+            currentInputDiv.classList.add('command');
+            currentInputDiv.classList.add('command-input');
+            
+            const commandSpan = document.createElement('span');
+            commandSpan.textContent = COMMAND_PREFIX;
+            currentInputDiv.appendChild(commandSpan);
+            
+            const cursorSpan = document.createElement('span');
+            cursorSpan.classList.add('cursor');
+            currentInputDiv.appendChild(cursorSpan);
+            
+            output.appendChild(currentInputDiv);
+            
+            requestAnimationFrame(() => {
+                output.scrollTop = output.scrollHeight + 100;
+            });
+            
+            currentCommand = '';
+            selectedCommand = CONFIG.getRandomCommand();
+            commandIndex = 0;
+        }
+
+        async function handleInput(key) {
+            if (key.length === 1 && commandIndex < selectedCommand.length) {
+                currentCommand += selectedCommand[commandIndex];
+                const commandSpan = currentInputDiv.firstChild;
+                commandSpan.textContent = COMMAND_PREFIX + currentCommand;
+                commandIndex++;
+                
+                requestAnimationFrame(() => {
+                    output.scrollTop = output.scrollHeight + 100;
+                });
+            }
+        }
+
+        async function startOutputMode() {
+            currentMode = 'OUTPUT';
+            let lastKeyPressTime = Date.now();
+            
+            const keyHandler = () => {
+                if (currentMode === 'OUTPUT') {
+                    const div = document.createElement('div');
+                    div.innerHTML = getRandomLog(selectedCommand).text;
+                    output.appendChild(div);
+                    output.scrollTop = output.scrollHeight;
+                    lastKeyPressTime = Date.now();
+                }
+            };
+            
+            document.addEventListener('keydown', keyHandler);
+            
+            while (currentMode === 'OUTPUT' && isRunning) {
+                const div = document.createElement('div');
+                div.innerHTML = getRandomLog(selectedCommand).text;
+                output.appendChild(div);
+                output.scrollTop = output.scrollHeight;
+                
+                const timeSinceLastKey = Date.now() - lastKeyPressTime;
+                const delay = timeSinceLastKey < 1000 ? 100 : randomInt(300, 800);
+                await new Promise(r => setTimeout(r, delay));
+            }
+            
+            document.removeEventListener('keydown', keyHandler);
+        }
+
+        document.addEventListener('keydown', async function(e) {
+            if (e.key === 'Escape') {
+                isRunning = false;
+                const div = document.createElement('div');
+                div.innerHTML = '<span class="cyan">=== SYSTEM SHUTDOWN ===</span>';
+                output.appendChild(div);
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                switch (currentMode) {
+                    case 'WAITING':
+                        currentMode = 'INPUT';
+                        initializeInput();
+                        break;
+                    case 'INPUT':
+                        while (commandIndex < selectedCommand.length) {
+                            currentCommand += selectedCommand[commandIndex];
+                            commandIndex++;
+                        }
+                        currentInputDiv.textContent = COMMAND_PREFIX + currentCommand;
+                        output.scrollTop = output.scrollHeight;
+                        
+                        currentMode = 'OUTPUT';
+                        startOutputMode();
+                        break;
+                    case 'OUTPUT':
+                        currentMode = 'INPUT';
+                        initializeInput();
+                        break;
+                }
+                e.preventDefault();
+                return;
+            }
+
+            if (currentMode === 'INPUT' && isRunning) {
+                handleInput(e.key);
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F1') {
+                e.preventDefault();
+                const helpModal = document.getElementById('helpModal');
+                helpModal.classList.toggle('show');
+            }
+        });
+
+        function toggleDisplayMode() {
+            document.body.classList.toggle('dark-mode');
+            document.body.classList.toggle('light-mode');
+        }
+
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function randomIP() {
+            return `${randomInt(1,255)}.${randomInt(1,255)}.${randomInt(1,255)}.${randomInt(1,255)}`;
+        }
+
+        function getCommandOutput(command) {
+            for (const [category, config] of Object.entries(CONFIG.commands)) {
+                if (config.patterns.some(pattern => command.includes(pattern))) {
+                    const template = config.outputs[Math.floor(Math.random() * config.outputs.length)];
+                    return {
+                        template,
+                        color: config.color
+                    };
+                }
+            }
+            return null;
+        }
+
+        function processTemplate(template) {
+            return template
+                .replace(/{hash}/g, CONFIG.utils.randomHash())
+                .replace(/{state}/g, () => CONFIG.variables.state[CONFIG.utils.randomInt(0, CONFIG.variables.state.length - 1)])
+                .replace(/{ip}/g, CONFIG.utils.randomIP())
+                .replace(/{cpu}/g, () => CONFIG.utils.randomInt(0, 100))
+                .replace(/{mem}/g, () => CONFIG.utils.randomInt(20, 95))
+        }
+
+        function getRandomLog(command) {
+            const output = getCommandOutput(command);
+            if (!output) return { text: "Unknown command", color: "red" };
+            
+            function replaceVariables(template) {
+                return template
+                    .replace('{hash}', CONFIG.utils.randomHash())
+                    .replace('{size}', CONFIG.utils.randomInt(1, 1000))
+                    .replace('{progress}', CONFIG.utils.randomInt(0, 100))
+                    .replace('{count}', CONFIG.utils.randomInt(10, 500))
+                    .replace('{pods}', CONFIG.utils.randomInt(1, 20))
+                    .replace('{nodes}', CONFIG.utils.randomInt(3, 10))
+                    .replace('{cpu}', CONFIG.utils.randomInt(0, 100))
+                    .replace('{mem}', CONFIG.utils.randomInt(0, 100))
+                    .replace('{disk}', CONFIG.utils.randomInt(0, 100))
+                    .replace('{net}', CONFIG.utils.randomInt(100, 1000))
+                    .replace('{qubits}', CONFIG.utils.randomInt(5, 50))
+                    .replace('{files}', CONFIG.utils.randomInt(1, 100))
+                    .replace('{status_code}', CONFIG.utils.randomInt(200, 500))
+                    .replace('{ip}', CONFIG.utils.randomIP())
+                    .replace('{state}', CONFIG.variables.state[CONFIG.utils.randomInt(0, CONFIG.variables.state.length - 1)])
+                    .replace('{status}', CONFIG.variables.status[CONFIG.utils.randomInt(0, CONFIG.variables.status.length - 1)])
+                    .replace('{attack_type}', CONFIG.variables.attack_type[CONFIG.utils.randomInt(0, CONFIG.variables.attack_type.length - 1)])
+                    .replace('{service}', CONFIG.variables.service[CONFIG.utils.randomInt(0, CONFIG.variables.service.length - 1)])
+                    .replace('{container}', CONFIG.variables.container[CONFIG.utils.randomInt(0, CONFIG.variables.container.length - 1)])
+                    .replace('{domain}', CONFIG.variables.domain[CONFIG.utils.randomInt(0, CONFIG.variables.domain.length - 1)])
+                    .replace('{server}', CONFIG.variables.server[CONFIG.utils.randomInt(0, CONFIG.variables.server.length - 1)])
+                    .replace('{changed}', CONFIG.variables.changed[CONFIG.utils.randomInt(0, CONFIG.variables.changed.length - 1)]);
+            }
+
+            const processedText = replaceVariables(output.template);
+            return {
+                text: processedText,
+                color: output.color
+            };
+        }
+    </script>
+</body>
+</html>
